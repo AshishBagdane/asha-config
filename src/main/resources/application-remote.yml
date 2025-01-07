@@ -1,0 +1,104 @@
+server:
+  port: 8888
+  shutdown: graceful
+  tomcat:
+    max-threads: 50
+    min-spare-threads: 20
+    connection-timeout: 5s
+
+spring:
+  application:
+    name: config-server
+  cloud:
+    config:
+      server:
+        git:
+          uri: ${CONFIG_REPO_URI:https://github.com/your-organization/your-config-repo}
+          default-label: ${CONFIG_REPO_BRANCH:main}
+          search-paths: ${CONFIG_SEARCH_PATHS:/*}
+          username: ${GITHUB_USERNAME}
+          password: ${GITHUB_PAT}  # Personal Access Token
+          clone-on-start: true
+          force-pull: true
+          timeout: 15
+          refresh-rate: 30
+          delete-untracked-branches: true
+          basedir: ${CONFIG_LOCAL_REPO_PATH:/tmp/config-repo}
+          repos:
+            development:
+              pattern: "*/dev,*/development"
+              uri: ${DEV_CONFIG_REPO_URI:https://github.com/your-organization/dev-config-repo}
+              search-paths: ${DEV_CONFIG_SEARCH_PATHS:development}
+              username: ${GITHUB_USERNAME}
+              password: ${GITHUB_PAT}
+            production:
+              pattern: "*/prod,*/production"
+              uri: ${PROD_CONFIG_REPO_URI:https://github.com/your-organization/prod-config-repo}
+              search-paths: ${PROD_CONFIG_SEARCH_PATHS:production}
+              username: ${GITHUB_USERNAME}
+              password: ${GITHUB_PAT}
+
+  # Security Configuration
+  security:
+    user:
+      name: ${CONFIG_SERVER_USERNAME:configuser}
+      password: ${CONFIG_SERVER_PASSWORD:configpass}
+
+# Eureka Client Configuration
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+    registry-fetch-interval-seconds: 10
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${random.uuid}
+    lease-renewal-interval-in-seconds: 10
+    health-check-url-path: /actuator/health
+
+# Management & Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,configprops
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  info:
+    git:
+      mode: full
+    env:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    org.springframework.cloud.config: DEBUG
+    org.springframework.cloud.config.server.environment: DEBUG
+    org.springframework.cloud.config.server.git: DEBUG
+    com.netflix.discovery: INFO
+    com.netflix.eureka: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [${spring.application.name},%X{traceId:-},%X{spanId:-}] [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [${spring.application.name},%X{traceId:-},%X{spanId:-}] [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/config-server.log
+    max-size: 10MB
+    max-history: 7
+
+# Encryption Configuration for sensitive properties
+encrypt:
+  key: ${CONFIG_ENCRYPT_KEY:default-encrypt-key-do-not-use-in-production}

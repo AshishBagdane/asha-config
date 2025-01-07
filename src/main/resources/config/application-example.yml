@@ -1,0 +1,187 @@
+# Common configuration for all asha microservices
+spring:
+  application:
+    name: ${MICROSERVICE_NAME:default-service}
+
+  # Security Configuration
+  security:
+    oauth2:
+      client:
+        registration:
+          oidc:
+            client-id: ${KEYCLOAK_CLIENT_ID}
+            client-secret: ${KEYCLOAK_CLIENT_SECRET}
+            scope: openid,profile,email
+            authorization-grant-type: authorization_code
+        provider:
+          oidc:
+            issuer-uri: ${KEYCLOAK_ISSUER_URI}
+            token-uri: ${KEYCLOAK_TOKEN_URI}
+            authorization-uri: ${KEYCLOAK_AUTH_URI}
+            user-info-uri: ${KEYCLOAK_USER_INFO_URI}
+            jwk-set-uri: ${KEYCLOAK_JWK_URI}
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+          jwk-set-uri: ${KEYCLOAK_JWK_URI}
+
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+    consumer:
+      group-id: ${spring.application.name}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+  # Redis Configuration
+  redis:
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT}
+    password: ${REDIS_PASSWORD}
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 2
+        max-wait: 1000ms
+
+  # Database Configuration
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+    show-sql: false
+
+# Cloud Config
+spring.cloud:
+  config:
+    enabled: true
+    fail-fast: true
+    retry:
+      initial-interval: 1000
+      max-interval: 2000
+      max-attempts: 6
+  gateway:
+    discovery:
+      locator:
+        enabled: true
+        lower-case-service-id: true
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      default:
+        slidingWindowSize: 100
+        permittedNumberOfCallsInHalfOpenState: 10
+        waitDurationInOpenState: 10000
+        failureRateThreshold: 50
+        registerHealthIndicator: true
+  ratelimiter:
+    instances:
+      default:
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0
+        registerHealthIndicator: true
+  bulkhead:
+    instances:
+      default:
+        maxConcurrentCalls: 20
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,loggers,prometheus,env
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+# OpenAPI Documentation
+springdoc:
+  show-actuator: true
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    oauth:
+      clientId: ${KEYCLOAK_CLIENT_ID:asha}
+  api-docs:
+    path: /v3/api-docs
+
+# Logging Configuration
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  level:
+    root: INFO
+    org.springframework: WARN
+    bh.dincharya.asha: DEBUG
+  file:
+    name: logs/${spring.application.name}.log
+    max-size: 10MB
+    max-history: 7
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+    min-response-size: 1024
+  tomcat:
+    max-threads: 200
+    min-spare-threads: 10
+    max-connections: 10000
+    accept-count: 100
+
+# Eureka Client Configuration
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URI:http://${EUREKA_USER:eureka}:${EUREKA_PASSWORD:password}@${EUREKA_HOST:localhost}:${EUREKA_PORT:8761}/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${random.uuid}
